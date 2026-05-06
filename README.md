@@ -40,8 +40,8 @@ lib/
 └── main.dart                       # Point d'entrée (ProviderScope, routes)
 ```
 ## Explication des couches :
-core/ : Contient tout ce qui est transversal à l'application. Si vous changez l'UUID de l'ESP32 ou une couleur, vous n'aurez qu'à modifier un seul fichier ici.
+**core/** : Contient tout ce qui est transversal à l'application. Si vous changez l'UUID de l'ESP32 ou une couleur, vous n'aurez qu'à modifier un seul fichier ici.
 
-application/ (dans les features) : C'est le "cerveau". Aucun code d'interface graphique (pas de Widgets) ne doit s'y trouver. C'est ici que Riverpod écoute les données et gère la logique de commutation exclusive des modes.
+**application/** (dans les features) : C'est le "cerveau". Aucun code d'interface graphique (pas de Widgets) ne doit s'y trouver. C'est ici que Riverpod écoute les données et gère la logique de commutation exclusive des modes.
 
-presentation/ (dans les features) : C'est le "visuel". Ces fichiers ne font qu'écouter les variables venant de l'application/ pour dessiner l'écran et envoyer les clics de l'utilisateur vers la logique métier.
+**presentation/** (dans les features) : C'est le "visuel". Ces fichiers ne font qu'écouter les variables venant de l'application/ pour dessiner l'écran et envoyer les clics de l'utilisateur vers la logique métier.
