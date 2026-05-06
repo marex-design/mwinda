@@ -4,8 +4,8 @@
 #include <BLE2902.h>
 
 // Définition des broches
-#define BUZZER_PIN 18
-
+#define BUZZER_PIN 18// Broche du  buzzer
+#define RELAY_PIN 19// Broche du relais
 // UUIDs générés pour MWINDA (à copier à l'identique dans Flutter)
 #define SERVICE_UUID           "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID    "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -45,10 +45,16 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         Serial.print("Commande reçue : ");
         Serial.println(rxValue);
         
-        // Exigence : Bipper deux fois à chaque interaction/changement
-        beepTwice();
-        
-        // La logique d'analyse des commandes sera ajoutée à l'Étape 3
+        beepTwice(); // Signal sonore de confirmation
+
+        if (rxValue == "MANUAL_ON") {
+          digitalWrite(RELAY_PIN, HIGH);
+          Serial.println("Lampe : ALLUMÉE");
+        } 
+        else if (rxValue == "MANUAL_OFF") {
+          digitalWrite(RELAY_PIN, LOW);
+          Serial.println("Lampe : ÉTEINTE");
+        }
       }
     }
 };
@@ -56,7 +62,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 void setup() {
     Serial.begin(115200);
     pinMode(BUZZER_PIN, OUTPUT);
-    
+    pinMode(RELAY_PIN, OUTPUT);
     Serial.println("Initialisation du BLE...");
     BLEDevice::init("MWINDA_ESP32"); // Nom visible lors du scan
     
