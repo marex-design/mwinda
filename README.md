@@ -6,38 +6,39 @@ Notre objectif est de créer une belle application mobile baptisé ''MWINDA'' qu
 # Architecture de l'application Flutter (MWINDA)
 Pour garantir un code propre, évolutif et une séparation stricte entre la logique métier et l'interface utilisateur, nous allons adopter une architecture orientée fonctionnalités (Feature-First Architecture). Nous utiliserons Riverpod pour la gestion d'état, car c'est la norme moderne et robuste pour ce type d'application réactive.
 
+
+```text
 lib/
 │
 ├── core/                           # Code partagé et configuration globale
 │   ├── constants/                  
-│   │   ├── ble_uuids.dart          # Stockage des UUIDs pour les services et caractéristiques de l'ESP32
-│   │   └── app_colors.dart         # Palette de couleurs pour MWINDA (ex: mode sombre/clair)
+│   │   ├── ble_uuids.dart          # UUIDs pour les services/caractéristiques ESP32
+│   │   └── app_colors.dart         # Palette de couleurs (mode sombre/clair)
 │   ├── theme/
-│   │   └── app_theme.dart          # Configuration globale du design (boutons, textes, etc.)
+│   │   └── app_theme.dart          # Configuration globale du design
 │   └── utils/
-│       └── permissions_helper.dart # Logique pour demander les permissions Bluetooth et Localisation (crucial sur Android/iOS)
+│       └── permissions_helper.dart # Permissions Bluetooth et Localisation
 │
-├── features/                       # Le cœur de l'application divisé par fonctionnalités
-│   │
-│   ├── bluetooth_connection/       # Fonctionnalité : Scanner et se connecter à l'ESP32
+├── features/                       # Cœur de l'application par fonctionnalités
+│   ├── bluetooth_connection/       # Fonctionnalité : Connexion à l'ESP32
 │   │   ├── application/
-│   │   │   └── ble_provider.dart   # Logique Riverpod pour gérer l'état de la connexion (Scan, Connecté, Déconnecté)
+│   │   │   └── ble_provider.dart   # Logique Riverpod (Scan, Connect, Disconnect)
 │   │   └── presentation/
-│   │       ├── scan_screen.dart    # Interface UI : Liste des appareils détectés
-│   │       └── widgets/            # Composants UI réutilisables (ex: tuile d'un appareil Bluetooth)
+│   │       ├── scan_screen.dart    # UI : Liste des appareils détectés
+│   │       └── widgets/            # Composants UI (tuiles appareils)
 │   │
-│   └── lamp_control/               # Fonctionnalité : Contrôle des 4 modes de la lampe
+│   └── lamp_control/               # Fonctionnalité : Contrôle des 4 modes
 │       ├── application/
-│       │   ├── mode_provider.dart  # Logique Riverpod gérant l'état exclusif des modes (Manuel, LDR, PIR, Sonore)
-│       │   └── command_sender.dart # Service chargé de convertir les actions UI en octets et de les envoyer via BLE
+│       │   ├── mode_provider.dart  # Logique Riverpod (états des modes)
+│       │   └── command_sender.dart # Conversion UI -> Octets -> BLE
 │       └── presentation/
-│           ├── control_screen.dart # Interface UI : Le tableau de bord principal avec les 4 modes
+│           ├── control_screen.dart # UI : Tableau de bord principal
 │           └── widgets/
-│               ├── mode_button.dart# Composant UI : Bouton personnalisé pour activer un mode
-│               └── status_card.dart# Composant UI : Affichage de l'état actuel de la lampe et du microcontrôleur
+│               ├── mode_button.dart# Bouton personnalisé pour les modes
+│               └── status_card.dart# Affichage état lampe & microcontrôleur
 │
-└── main.dart                       # Point d'entrée de l'application, initialisation de Riverpod (ProviderScope) et des routes
-
+└── main.dart                       # Point d'entrée (ProviderScope, routes)
+```
 ## Explication des couches :
 core/ : Contient tout ce qui est transversal à l'application. Si vous changez l'UUID de l'ESP32 ou une couleur, vous n'aurez qu'à modifier un seul fichier ici.
 
