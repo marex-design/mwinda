@@ -40,10 +40,10 @@ class MyServerCallbacks: public BLEServerCallbacks {
 // Callbacks pour la réception des commandes depuis Flutter
 class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
-      std::string rxValue = pCharacteristic->getValue();
+      String rxValue = pCharacteristic->getValue();
       if (rxValue.length() > 0) {
         Serial.print("Commande reçue : ");
-        Serial.println(rxValue.c_str());
+        Serial.println(rxValue);
         
         // Exigence : Bipper deux fois à chaque interaction/changement
         beepTwice();
