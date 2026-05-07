@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import '../../../core/constants/ble_uuids.dart';
 import '../../bluetooth_connection/application/ble_provider.dart';
+
+// État ON/OFF de la lampe
+final lampIsOnProvider = StateProvider<bool>((ref) => false);
 
 final commandSenderProvider = Provider((ref) => CommandSender(ref));
 
@@ -10,23 +11,30 @@ class CommandSender {
   final Ref ref;
   CommandSender(this.ref);
 
-  Future<void> sendCommand(String command) async {
-    final device = ref.read(connectedDeviceProvider);
-    if (device == null) return;
+  /// Bascule la lampe ON/OFF et envoie la commande BLE
+  Future<void> toggleLamp() async {
+    final characteristic = ref.read(cachedCharacteristicProvider);
+    if (characteristic == null) {
+      ref.read(connectionStatusProvider.notifier).state =
+          "Non connecté. Appuyez d'abord sur 'Connexion'.";
+      return;
+    }
 
-    // Découvrir les services si ce n'est pas déjà fait
-    List<BluetoothService> services = await device.discoverServices();
-    
-    for (var service in services) {
-      if (service.uuid.toString() == BleUuids.serviceUuid) {
-        for (var characteristic in service.characteristics) {
-          if (characteristic.uuid.toString() == BleUuids.characteristicUuid) {
-            // Envoyer la commande sous forme d'octets (UTF-8)
-            await characteristic.write(utf8.encode(command));
-            print("Commande envoyée : $command");
-          }
-        }
-      }
+    final isOn = ref.read(lampIsOnProvider);
+    final command = isOn ? "MANUAL_OFF" : "MANUAL_ON";
+
+    ref.read(connectionStatusProvider.notifier).state = "Envoi : $command...";
+
+    try {
+      await characteristic.write(utf8.encode(command), withoutResponse: false);
+      // Mettre à jour l'état local APRÈS succès
+      ref.read(lampIsOnProvider.notifier).state = !isOn;
+      ref.read(connectionStatusProvider.notifier).state =
+          isOn ? "Lampe éteinte." : "Lampe allumée.";
+    } catch (e) {
+      ref.read(connectionStatusProvider.notifier).state =
+          "Erreur envoi commande : $e";
     }
   }
 }
+
