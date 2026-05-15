@@ -3,10 +3,10 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 
-// Définition des broches
-#define BUZZER_PIN 18// Broche du  buzzer
-#define RELAY_PIN 19// Broche du relais
-// UUIDs générés pour MWINDA (à copier à l'identique dans Flutter)
+#define BUZZER_PIN 18// Broche pour le buzzer
+#define RELAY_PIN 19// Broche pour le relais
+#define PIR_PIN 27 // Nouvelle broche pour le capteur de mouvement
+
 #define SERVICE_UUID           "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID    "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
@@ -14,17 +14,19 @@ BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
 bool deviceConnected = false;
 
-// Fonction pour le double bip du buzzer
+// Variable pour stocker le mode actuel
+String currentMode = "MODE_NONE";
+
+// Fonction pour faire biper le buzzer deux fois
 void beepTwice() {
     for(int i = 0; i < 2; i++) {
         digitalWrite(BUZZER_PIN, HIGH);
-        delay(100); // Bip pendant 100ms
+        delay(100);
         digitalWrite(BUZZER_PIN, LOW);
-        delay(100); // Silence pendant 100ms
+        delay(100);
     }
 }
-
-// Callbacks pour gérer la connexion/déconnexion
+// Callbacks pour gérer les connexions Bluetooth
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
@@ -32,12 +34,14 @@ class MyServerCallbacks: public BLEServerCallbacks {
     };
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
-      Serial.println("Smartphone déconnecté. Redémarrage de l'Advertising...");
-      BLEDevice::startAdvertising(); // Relancer la visibilité si on perd la connexion
+      currentMode = "MODE_NONE"; // Sécurité : on désactive tout si déconnecté
+      digitalWrite(RELAY_PIN, LOW);
+      Serial.println("Smartphone déconnecté.");
+      BLEDevice::startAdvertising();
     }
 };
 
-// Callbacks pour la réception des commandes depuis Flutter
+// Callbacks pour gérer les écritures sur la caractéristique Bluetooth
 class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       String rxValue = pCharacteristic->getValue();
@@ -45,15 +49,28 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         Serial.print("Commande reçue : ");
         Serial.println(rxValue);
         
-        beepTwice(); // Signal sonore de confirmation
+        beepTwice(); // Bip à chaque commande reçue
 
-        if (rxValue == "MANUAL_ON") {
-          digitalWrite(RELAY_PIN, HIGH);
-          Serial.println("Lampe : ALLUMÉE");
+        // Gestion des changements de MODE
+        if (rxValue == "MODE_MANUAL") {
+          currentMode = "MODE_MANUAL";
+          digitalWrite(RELAY_PIN, LOW); // On éteint par défaut en entrant dans le mode
         } 
-        else if (rxValue == "MANUAL_OFF") {
+        else if (rxValue == "MODE_MOTION") {
+          currentMode = "MODE_MOTION";
           digitalWrite(RELAY_PIN, LOW);
-          Serial.println("Lampe : ÉTEINTE");
+        }
+        else if (rxValue == "MODE_NONE") {
+          currentMode = "MODE_NONE";
+          digitalWrite(RELAY_PIN, LOW);
+        }
+        
+        // Gestion des actions du MODE MANUEL
+        else if (rxValue == "MANUAL_ON" && currentMode == "MODE_MANUAL") {
+          digitalWrite(RELAY_PIN, HIGH);
+        } 
+        else if (rxValue == "MANUAL_OFF" && currentMode == "MODE_MANUAL") {
+          digitalWrite(RELAY_PIN, LOW);
         }
       }
     }
@@ -63,37 +80,45 @@ void setup() {
     Serial.begin(115200);
     pinMode(BUZZER_PIN, OUTPUT);
     pinMode(RELAY_PIN, OUTPUT);
-    Serial.println("Initialisation du BLE...");
-    BLEDevice::init("MWINDA_ESP32"); // Nom visible lors du scan
+    pinMode(PIR_PIN, INPUT); // Configuration du PIR en entrée
     
+    BLEDevice::init("MWINDA_ESP32");// Nom Bluetooth de l'ESP32
     pServer = BLEDevice::createServer();
     pServer->setCallbacks(new MyServerCallbacks());
-    
     BLEService *pService = pServer->createService(SERVICE_UUID);
-    
-    // Création de la caractéristique en mode Écriture (pour recevoir) et Notification (pour envoyer un statut plus tard)
     pCharacteristic = pService->createCharacteristic(
                         CHARACTERISTIC_UUID,
                         BLECharacteristic::PROPERTY_WRITE |
                         BLECharacteristic::PROPERTY_NOTIFY
                       );
-                      
     pCharacteristic->setCallbacks(new MyCallbacks());
     pCharacteristic->addDescriptor(new BLE2902());
     pService->start();
-    
-    // Configuration de l'Advertising
     BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(SERVICE_UUID);
     pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(0x06);  
-    pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
-    
-    Serial.println("MWINDA prêt. En attente d'une connexion BLE...");
 }
 
 void loop() {
-    // La boucle principale est vide pour l'instant.
-    delay(2000);
+    // Si le mode mouvement est activé, on écoute le capteur PIR
+    if (currentMode == "MODE_MOTION") {
+        static unsigned long lastMotionTime = 0;
+        static bool wasOn = false;
+
+        if (digitalRead(PIR_PIN) == HIGH) {
+            if (!wasOn) {
+                // Front montant : mouvement vient d'être détecté → bip + allumage
+                beepTwice();
+                wasOn = true;
+            }
+            lastMotionTime = millis();
+            digitalWrite(RELAY_PIN, HIGH);
+        } else if (millis() - lastMotionTime > 5000) {
+            // Plus de mouvement depuis 5 sec → extinction
+            digitalWrite(RELAY_PIN, LOW);
+            wasOn = false;
+        }
+        delay(200);
+    }
 }
