@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../bluetooth_connection/application/ble_provider.dart';
 
 // Enumération pour définir clairement les modes possibles
-enum AppMode { none, manual, motion }
+enum AppMode { none, manual, motion, sound }
 
 // État du mode actif
 final activeModeProvider = StateProvider<AppMode>((ref) => AppMode.none);
@@ -43,23 +43,22 @@ class CommandSender {
       await _sendBleCommand("MODE_MANUAL");
     } else if (newMode == AppMode.motion) {
       await _sendBleCommand("MODE_MOTION");
+    } else if (newMode == AppMode.sound) {
+      await _sendBleCommand("MODE_SOUND");
     } else {
       await _sendBleCommand("MODE_NONE");
     }
   }
- 
- 
 
   // Action du bouton manuel
   Future<void> toggleLamp() async {
-    if (ref.read(activeModeProvider) != AppMode.manual) return; // Sécurité
+    if (ref.read(activeModeProvider) != AppMode.manual) return;
 
     final isOn = ref.read(lampIsOnProvider);
     final command = isOn ? "MANUAL_OFF" : "MANUAL_ON";
-    
+
     await _sendBleCommand(command);
     ref.read(lampIsOnProvider.notifier).state = !isOn;
   }
 }
-
 

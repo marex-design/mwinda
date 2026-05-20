@@ -103,6 +103,47 @@ class ControlScreenTest extends ConsumerWidget {
                     isConnected: isConnected,
                     onToggle: (val) => ref.read(commandSenderProvider).setMode(val ? AppMode.motion : AppMode.none),
                   ),
+                  const SizedBox(height: 12),
+                  // 3. MODE SONORE (Claquement)
+                  _buildFeatureTile(
+                    title: "Détection sonore",
+                    icon: Icons.graphic_eq,
+                    isActive: activeMode == AppMode.sound,
+                    isDisabled: activeMode != AppMode.none && activeMode != AppMode.sound,
+                    isConnected: isConnected,
+                    onToggle: (val) => ref.read(commandSenderProvider).setMode(val ? AppMode.sound : AppMode.none),
+                  ),
+
+                  // Animation de déroulement pour les instructions du mode sonore
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeInOutBack,
+                    child: activeMode == AppMode.sound
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: 12, bottom: 20, left: 16, right: 16),
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline, color: Colors.amber.shade200),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      "Applaudissez deux fois rapidement pour allumer ou éteindre la lampe.",
+                                      style: TextStyle(color: Colors.amber.shade100, fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
 
                 ],
               ),
