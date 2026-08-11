@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../bluetooth_connection/application/ble_provider.dart';
 
 // Enumération pour définir clairement les modes possibles
-enum AppMode { none, manual, motion, sound }
+enum AppMode { none, manual, motion, sound, light }
 
 // État du mode actif
 final activeModeProvider = StateProvider<AppMode>((ref) => AppMode.none);
@@ -45,6 +45,8 @@ class CommandSender {
       await _sendBleCommand("MODE_MOTION");
     } else if (newMode == AppMode.sound) {
       await _sendBleCommand("MODE_SOUND");
+    } else if (newMode == AppMode.light) {
+      await _sendBleCommand("MODE_LIGHT"); // NOUVELLE COMMANDE
     } else {
       await _sendBleCommand("MODE_NONE");
     }

@@ -144,6 +144,47 @@ class ControlScreenTest extends ConsumerWidget {
                           )
                         : const SizedBox.shrink(),
                   ),
+                  const SizedBox(height: 12),
+                  // 4. MODE LUMIÈRE (Photorésistance)
+                  _buildFeatureTile(
+                    title: "Détection de lumière",
+                    icon: Icons.brightness_auto,
+                    isActive: activeMode == AppMode.light,
+                    isDisabled: activeMode != AppMode.none && activeMode != AppMode.light,
+                    isConnected: isConnected,
+                    onToggle: (val) => ref.read(commandSenderProvider).setMode(val ? AppMode.light : AppMode.none),
+                  ),
+
+                  // Animation de déroulement pour les instructions du mode lumière
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeInOutBack,
+                    child: activeMode == AppMode.light
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: 12, bottom: 20, left: 16, right: 16),
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1), // Couleur un peu différente pour la nuit
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.nightlight_round, color: Colors.blue.shade200),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      "La lampe s'allumera automatiquement à la tombée de la nuit et s'éteindra au lever du jour.",
+                                      style: TextStyle(color: Colors.blue.shade100, fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
 
                 ],
               ),

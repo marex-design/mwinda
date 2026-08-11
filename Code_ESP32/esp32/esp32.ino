@@ -3,10 +3,11 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 
-#define BUZZER_PIN 18// Broche pour le buzzer
-#define RELAY_PIN 19// Broche pour le relais
-#define PIR_PIN 27 // Broche pour le capteur de mouvement
-#define SOUND_PIN 26   // broche pour le KY-037 (D0)
+#define BUZZER_PIN 18   // Broche pour le buzzer
+#define RELAY_PIN 19    // Broche pour le relais
+#define PIR_PIN 27      // Broche pour le capteur de mouvement
+#define SOUND_PIN 26    // Broche pour le KY-037 (D0)
+#define LDR_PIN 32      //Broche analogique pour la photorésistance
 
 #define SERVICE_UUID           "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID    "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -15,16 +16,14 @@ BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
 bool deviceConnected = false;
 
-// Variable pour stocker le mode actuel
 String currentMode = "MODE_NONE";
 
-// Variables globales pour le mode sonore (globales = réinitialisables depuis onWrite)
+// Variables globales pour le mode sonore
 unsigned long lastSoundTime = 0;
 int clapCount = 0;
 bool soundRelayState = false;
-unsigned long soundModeStartTime = 0; // Pour ignorer le bip d'activation
+unsigned long soundModeStartTime = 0;
 
-// Fonction pour faire biper le buzzer deux fois
 void beepTwice() {
     for(int i = 0; i < 2; i++) {
         digitalWrite(BUZZER_PIN, HIGH);
@@ -33,7 +32,7 @@ void beepTwice() {
         delay(100);
     }
 }
-// Callbacks pour gérer les connexions Bluetooth
+
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
@@ -41,14 +40,13 @@ class MyServerCallbacks: public BLEServerCallbacks {
     };
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
-      currentMode = "MODE_NONE"; // Sécurité : on désactive tout si déconnecté
+      currentMode = "MODE_NONE"; 
       digitalWrite(RELAY_PIN, LOW);
       Serial.println("Smartphone déconnecté.");
       BLEDevice::startAdvertising();
     }
 };
 
-// Callbacks pour gérer les écritures sur la caractéristique Bluetooth
 class MyCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       String rxValue = pCharacteristic->getValue();
@@ -56,36 +54,35 @@ class MyCallbacks: public BLECharacteristicCallbacks {
         Serial.print("Commande reçue : ");
         Serial.println(rxValue);
         
-        // Bip de confirmation pour les changements de mode uniquement
-        // (pas pour MANUAL_ON/OFF ni pour les claps du mode sonore)
         bool isMode = (rxValue == "MODE_MANUAL" || rxValue == "MODE_MOTION" ||
-                       rxValue == "MODE_SOUND" || rxValue == "MODE_NONE");
+                       rxValue == "MODE_SOUND" || rxValue == "MODE_LIGHT" || rxValue == "MODE_NONE");
         if (isMode) beepTwice();
 
-        // Gestion des changements de MODE
         if (rxValue == "MODE_MANUAL") {
           currentMode = "MODE_MANUAL";
-          digitalWrite(RELAY_PIN, LOW); // On éteint par défaut en entrant dans le mode
+          digitalWrite(RELAY_PIN, LOW); 
         } 
         else if (rxValue == "MODE_MOTION") {
           currentMode = "MODE_MOTION";
           digitalWrite(RELAY_PIN, LOW);
         }
-        else if (rxValue == "MODE_SOUND") { // MODE SONORE
+        else if (rxValue == "MODE_SOUND") { 
           currentMode = "MODE_SOUND";
           digitalWrite(RELAY_PIN, LOW);
-          // Réinitialiser l'état et démarrer le délai d'ignorance
           lastSoundTime = 0;
           clapCount = 0;
           soundRelayState = false;
-          soundModeStartTime = millis(); // Le son du bip sera ignoré pendant 1.5 sec
+          soundModeStartTime = millis(); 
+        }
+        else if (rxValue == "MODE_LIGHT") { // NOUVEAU MODE LUMIÈRE
+          currentMode = "MODE_LIGHT";
+          digitalWrite(RELAY_PIN, LOW);
         }
         else if (rxValue == "MODE_NONE") {
           currentMode = "MODE_NONE";
           digitalWrite(RELAY_PIN, LOW);
         }
         
-        // Gestion des actions du MODE MANUEL
         else if (rxValue == "MANUAL_ON" && currentMode == "MODE_MANUAL") {
           digitalWrite(RELAY_PIN, HIGH);
         } 
@@ -100,10 +97,12 @@ void setup() {
     Serial.begin(115200);
     pinMode(BUZZER_PIN, OUTPUT);
     pinMode(RELAY_PIN, OUTPUT);
-    pinMode(PIR_PIN, INPUT); // Configuration du PIR en entrée
-    pinMode(SOUND_PIN, INPUT); // Configuration du capteur de son
+    pinMode(PIR_PIN, INPUT); 
+    pinMode(SOUND_PIN, INPUT); 
+    // LDR_PIN n'a pas besoin de pinMode strict pour analogRead, mais c'est une bonne pratique :
+    pinMode(LDR_PIN, INPUT); 
     
-    BLEDevice::init("MWINDA_ESP32");// Nom Bluetooth de l'ESP32
+    BLEDevice::init("MWINDA_ESP32");
     pServer = BLEDevice::createServer();
     pServer->setCallbacks(new MyServerCallbacks());
     BLEService *pService = pServer->createService(SERVICE_UUID);
@@ -122,42 +121,35 @@ void setup() {
 }
 
 void loop() {
-  unsigned long currentMillis = millis();
-    // Si le mode mouvement est activé, on écoute le capteur PIR
+    unsigned long currentMillis = millis();
+
+    // 1. MODE MOUVEMENT
     if (currentMode == "MODE_MOTION") {
         static unsigned long lastMotionTime = 0;
         static bool wasOn = false;
 
         if (digitalRead(PIR_PIN) == HIGH) {
             if (!wasOn) {
-                // Front montant : mouvement vient d'être détecté → bip + allumage
                 beepTwice();
                 wasOn = true;
             }
             lastMotionTime = currentMillis;
             digitalWrite(RELAY_PIN, HIGH);
         } else if (currentMillis - lastMotionTime > 5000) {
-            // Plus de mouvement depuis 5 sec → extinction
             digitalWrite(RELAY_PIN, LOW);
             wasOn = false;
         }
         delay(200);
     }
-    // ----------------------------------------------------
-    // MODE SONORE (Claquement / Clap)
-    // ----------------------------------------------------
+    
+    // 2. MODE SONORE
     else if (currentMode == "MODE_SOUND") {
-        // Ignorer tous les sons pendant 1.5 sec après activation
-        // (évite que le bip de confirmation BLE soit détecté comme un clap)
         if (currentMillis - soundModeStartTime < 1500) {
             delay(50);
         } else {
             int soundDetected = digitalRead(SOUND_PIN);
-
             if (soundDetected == HIGH) {
-                // Anti-rebond : ignorer les bruits < 200ms
                 if (currentMillis - lastSoundTime > 200) {
-                    // Si > 1 sec depuis le dernier clap → recommencer le compteur
                     if (currentMillis - lastSoundTime > 1000) {
                         clapCount = 1;
                     } else {
@@ -168,12 +160,27 @@ void loop() {
                     if (clapCount >= 2) {
                         soundRelayState = !soundRelayState;
                         digitalWrite(RELAY_PIN, soundRelayState ? HIGH : LOW);
-                        // Pas de beep ici : le buzzer serait re-détecté par le capteur
                         clapCount = 0;
                     }
                 }
             }
             delay(10);
         }
+    }
+
+    // 3. MODE LUMIÈRE (LDR)
+    else if (currentMode == "MODE_LIGHT") {
+        int ldrValue = analogRead(LDR_PIN);
+        // Debug pour voir la valeur exacte dans le moniteur série (pratique pour ajuster)
+         Serial.println(ldrValue); 
+        
+        // Hystérésis pour éviter le clignotement
+        if (ldrValue > 3100) { // S'il fait nuit (Tension > ~2.5V)
+            digitalWrite(RELAY_PIN, HIGH);
+        } else if (ldrValue < 2900) { // S'il fait jour (Tension < ~2.3V)
+            digitalWrite(RELAY_PIN, LOW);
+        }
+        
+        delay(500); // Pas besoin de lire trop vite pour la lumière
     }
 }
