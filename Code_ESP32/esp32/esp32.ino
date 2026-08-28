@@ -3,11 +3,11 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 
-#define BUZZER_PIN 18   // Broche pour le buzzer
-#define RELAY_PIN 19    // Broche pour le relais
-#define PIR_PIN 27      // Broche pour le capteur de mouvement
-#define SOUND_PIN 26    // Broche pour le KY-037 (D0)
-#define LDR_PIN 32      //Broche analogique pour la photorésistance
+#define BUZZER_PIN 18
+#define RELAY_PIN 19    // Broche pour le relais (Active Low)
+#define PIR_PIN 27
+#define SOUND_PIN 26
+#define LDR_PIN 32
 
 #define SERVICE_UUID           "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID    "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -21,7 +21,7 @@ String currentMode = "MODE_NONE";
 // Variables globales pour le mode sonore
 unsigned long lastSoundTime = 0;
 int clapCount = 0;
-bool soundRelayState = false;
+bool soundRelayState = false; // false signifiera éteint (donc HIGH sur la broche)
 unsigned long soundModeStartTime = 0;
 
 void beepTwice() {
@@ -41,7 +41,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
       currentMode = "MODE_NONE"; 
-      digitalWrite(RELAY_PIN, LOW);
+      digitalWrite(RELAY_PIN, HIGH); // ÉTEINT le relais (Active Low)
       Serial.println("Smartphone déconnecté.");
       BLEDevice::startAdvertising();
     }
@@ -58,36 +58,38 @@ class MyCallbacks: public BLECharacteristicCallbacks {
                        rxValue == "MODE_SOUND" || rxValue == "MODE_LIGHT" || rxValue == "MODE_NONE");
         if (isMode) beepTwice();
 
+        // Lors d'un changement de mode, on éteint la lampe par défaut (HIGH pour Active Low)
         if (rxValue == "MODE_MANUAL") {
           currentMode = "MODE_MANUAL";
-          digitalWrite(RELAY_PIN, LOW); 
+          digitalWrite(RELAY_PIN, HIGH); 
         } 
         else if (rxValue == "MODE_MOTION") {
           currentMode = "MODE_MOTION";
-          digitalWrite(RELAY_PIN, LOW);
+          digitalWrite(RELAY_PIN, HIGH);
         }
         else if (rxValue == "MODE_SOUND") { 
           currentMode = "MODE_SOUND";
-          digitalWrite(RELAY_PIN, LOW);
+          digitalWrite(RELAY_PIN, HIGH);
           lastSoundTime = 0;
           clapCount = 0;
           soundRelayState = false;
           soundModeStartTime = millis(); 
         }
-        else if (rxValue == "MODE_LIGHT") { // NOUVEAU MODE LUMIÈRE
+        else if (rxValue == "MODE_LIGHT") { 
           currentMode = "MODE_LIGHT";
-          digitalWrite(RELAY_PIN, LOW);
+          digitalWrite(RELAY_PIN, HIGH);
         }
         else if (rxValue == "MODE_NONE") {
           currentMode = "MODE_NONE";
-          digitalWrite(RELAY_PIN, LOW);
+          digitalWrite(RELAY_PIN, HIGH);
         }
         
+        // Mode Manuel : LOW pour allumer, HIGH pour éteindre
         else if (rxValue == "MANUAL_ON" && currentMode == "MODE_MANUAL") {
-          digitalWrite(RELAY_PIN, HIGH);
+          digitalWrite(RELAY_PIN, LOW);
         } 
         else if (rxValue == "MANUAL_OFF" && currentMode == "MODE_MANUAL") {
-          digitalWrite(RELAY_PIN, LOW);
+          digitalWrite(RELAY_PIN, HIGH);
         }
       }
     }
@@ -96,10 +98,13 @@ class MyCallbacks: public BLECharacteristicCallbacks {
 void setup() {
     Serial.begin(115200);
     pinMode(BUZZER_PIN, OUTPUT);
+    
+    // CORRECTION ICI : On déclare d'abord en OUTPUT, puis on met sur HIGH direct
     pinMode(RELAY_PIN, OUTPUT);
+    digitalWrite(RELAY_PIN, HIGH); // Éteint le relais immédiatement
+    
     pinMode(PIR_PIN, INPUT); 
     pinMode(SOUND_PIN, INPUT); 
-    // LDR_PIN n'a pas besoin de pinMode strict pour analogRead, mais c'est une bonne pratique :
     pinMode(LDR_PIN, INPUT); 
     
     BLEDevice::init("MWINDA_ESP32");
@@ -134,9 +139,9 @@ void loop() {
                 wasOn = true;
             }
             lastMotionTime = currentMillis;
-            digitalWrite(RELAY_PIN, HIGH);
+            digitalWrite(RELAY_PIN, LOW); // LOW pour allumer
         } else if (currentMillis - lastMotionTime > 5000) {
-            digitalWrite(RELAY_PIN, LOW);
+            digitalWrite(RELAY_PIN, HIGH); // HIGH pour éteindre
             wasOn = false;
         }
         delay(200);
@@ -159,7 +164,8 @@ void loop() {
 
                     if (clapCount >= 2) {
                         soundRelayState = !soundRelayState;
-                        digitalWrite(RELAY_PIN, soundRelayState ? HIGH : LOW);
+                        // Si l'état est vrai (allumé), on envoie LOW. Sinon on envoie HIGH.
+                        digitalWrite(RELAY_PIN, soundRelayState ? LOW : HIGH);
                         clapCount = 0;
                     }
                 }
@@ -171,16 +177,13 @@ void loop() {
     // 3. MODE LUMIÈRE (LDR)
     else if (currentMode == "MODE_LIGHT") {
         int ldrValue = analogRead(LDR_PIN);
-        // Debug pour voir la valeur exacte dans le moniteur série (pratique pour ajuster)
-         Serial.println(ldrValue); 
         
-        // Hystérésis pour éviter le clignotement
-        if (ldrValue > 3100) { // S'il fait nuit (Tension > ~2.5V)
-            digitalWrite(RELAY_PIN, HIGH);
-        } else if (ldrValue < 2900) { // S'il fait jour (Tension < ~2.3V)
-            digitalWrite(RELAY_PIN, LOW);
+        if (ldrValue > 3100) { 
+            digitalWrite(RELAY_PIN, LOW); // Fait nuit : on allume (LOW)
+        } else if (ldrValue < 2900) { 
+            digitalWrite(RELAY_PIN, HIGH); // Fait jour : on éteint (HIGH)
         }
         
-        delay(500); // Pas besoin de lire trop vite pour la lumière
+        delay(500);
     }
 }
